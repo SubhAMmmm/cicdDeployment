@@ -2,8 +2,6 @@ trigger:
   - main
 
 variables:
-  DOCKER_HUB_USERNAME: '$(dockerHubUsername)'  # Set this in Azure DevOps
-  DOCKER_HUB_PASSWORD: '$(dockerHubPassword)'  # Set this in Azure DevOps
   VM_USERNAME: '$(vmUsername)'        # Set this in Azure DevOps
   VM_PASSWORD: '$(vmPassword)'        # Set this in Azure DevOps
   VM_IP: '$(vmIp)'                   # Set this in Azure DevOps
@@ -18,29 +16,29 @@ stages:
     steps:
     - task: Docker@2
       inputs:
-        containerRegistry: 'dockerHub'
+        containerRegistry: 'dockerhub-connection'
         command: 'login'
         
     - script: |
         # Build and push backend
         cd backend
-        docker build -t $(DOCKER_HUB_USERNAME)/backend:$(COMMIT_ID) .
-        docker push $(DOCKER_HUB_USERNAME)/backend:$(COMMIT_ID)
+        docker build -t $(DOCKER_REGISTRY_USERNAME)/backend:$(COMMIT_ID) .
+        docker push $(DOCKER_REGISTRY_USERNAME)/backend:$(COMMIT_ID)
         
         # Build and push frontend
         cd ../frontend
-        docker build -t $(DOCKER_HUB_USERNAME)/frontend:$(COMMIT_ID) .
-        docker push $(DOCKER_HUB_USERNAME)/frontend:$(COMMIT_ID)
+        docker build -t $(DOCKER_REGISTRY_USERNAME)/frontend:$(COMMIT_ID) .
+        docker push $(DOCKER_REGISTRY_USERNAME)/frontend:$(COMMIT_ID)
       displayName: 'Build and Push Docker Images'
 
     - script: |
         # Update docker-compose.yaml with new image tags
-        sed -i "s|build: .*|image: $(DOCKER_HUB_USERNAME)/backend:$(COMMIT_ID)|g" docker-compose.yaml
-        sed -i "s|build: .*|image: $(DOCKER_HUB_USERNAME)/frontend:$(COMMIT_ID)|g" docker-compose.yaml
+        sed -i "s|build: .*|image: $(DOCKER_REGISTRY_USERNAME)/backend:$(COMMIT_ID)|g" docker-compose.yaml
+        sed -i "s|build: .*|image: $(DOCKER_REGISTRY_USERNAME)/frontend:$(COMMIT_ID)|g" docker-compose.yaml
         
         # Commit and push changes
-        git config --global user.email "azuredevops@example.com"
-        git config --global user.name "Azure DevOps Pipeline"
+        git config --global user.email "subhamid007@gmail.com"
+        git config --global user.name "SubhAMmmm"
         git add docker-compose.yaml
         git commit -m "Update image tags to $(COMMIT_ID)"
         git push
@@ -62,8 +60,8 @@ stages:
         
         # Execute deployment commands on VM
         sshpass -p "$(VM_PASSWORD)" ssh -o StrictHostKeyChecking=no $(VM_USERNAME)@$(VM_IP) '
-          # Login to Docker Hub
-          docker login -u $(DOCKER_HUB_USERNAME) -p $(DOCKER_HUB_PASSWORD)
+          # Login to Docker Hub using the service connection credentials
+          docker login -u $(DOCKER_REGISTRY_USERNAME) -p $(DOCKER_REGISTRY_PASSWORD)
           
           # Pull new images and deploy
           docker-compose pull
