@@ -1,0 +1,63 @@
+trigger:
+  - main
+
+variables:
+  DOCKER_REGISTRY: subhamsahu121
+  BACKEND_IMAGE: $(DOCKER_REGISTRY)/backend
+  FRONTEND_IMAGE: $(DOCKER_REGISTRY)/frontend
+  POSTGRES_IMAGE: $(DOCKER_REGISTRY)/postgres
+
+stages:
+- stage: Build
+  jobs:
+  - job: BuildAndPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'dockerhub-connection'
+        repository: '$(BACKEND_IMAGE)'
+        command: 'buildAndPush'
+        Dockerfile: '**/backend/Dockerfile'
+        tags: |
+          $(Build.BuildId)
+          latest
+
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'dockerhub-connection'
+        repository: '$(FRONTEND_IMAGE)'
+        command: 'buildAndPush'
+        Dockerfile: '**/frontend/Dockerfile'
+        tags: |
+          $(Build.BuildId)
+          latest
+
+- stage: Deploy
+  jobs:
+  - job: DeployToVM
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: CopyFilesOverSSH@0
+      inputs:
+        sshEndpoint: 'azure-vm-connection'
+        sourceFolder: '$(System.DefaultWorkingDirectory)'
+        contents: |
+          docker-compose.yaml
+          **/staticfiles/**
+          **/static/**
+        targetFolder: '/home/azureuser/app'
+    
+    - task: SSH@0
+      inputs:
+        sshEndpoint: 'azure-vm-connection'
+        runOptions: 'commands'
+        commands: |
+          cd /home/azureuser/app
+          docker login -u $(DOCKER_REGISTRY) -p $(DOCKER_HUB_PASSWORD)
+          mkdir -p staticfiles static
+          docker-compose pull
+          docker-compose down
+          docker-compose up -d
