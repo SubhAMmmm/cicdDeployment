@@ -1,0 +1,143 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: deployment_test_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    command: >
+      bash -c "python manage.py migrate
+      && python manage.py collectstatic --noinput
+      && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/staticfiles:/app/staticfiles
+      - ./backend/static:/app/static  # Add this line
+    environment:
+      - DJANGO_SECRET_KEY=your-secret-key
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0,backend
+      - POSTGRES_NAME=deployment_test_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: node:20-alpine
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "5173:5173"  # Default Vite port
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_HOST=0.0.0.0
+      - CHOKIDAR_USEPOLLING=true
+      # - REACT_APP_API_URL=http://backend:8000
+      - VITE_API_URL=http://4.188.79.132:8000
+    command: npm run dev -- --host 0.0.0.0  # Corrected Vite command
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
+
+
+
+
+
+
+
+# services:
+#   postgres:
+#     image: subhamsahu121/postgres:15
+#     container_name: postgres
+#     environment:
+#       POSTGRES_DB: deployment_test_db
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: root
+#     ports:
+#       - "5433:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U postgres"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 5
+
+#   backend:
+#     image: subhamsahu121/backend:latest  # Use the image you pushed to Docker Hub
+#     container_name: backend
+#     command: >
+#       bash -c "python manage.py migrate
+#       && python manage.py collectstatic --noinput
+#       && python manage.py runserver 0.0.0.0:8000"
+#     ports:
+#       - "8000:8000"
+#     volumes:
+#       - ./staticfiles:/app/staticfiles
+#       - ./static:/app/static
+#     environment:
+#       - DJANGO_SECRET_KEY=your_secret_key  # Use environment variable
+#       - DJANGO_DEBUG=False  # Set to False in production
+#       - DJANGO_ALLOWED_HOSTS=*  # Adjust as needed
+#       - POSTGRES_NAME=deployment_test_db
+#       - POSTGRES_USER=postgres
+#       - POSTGRES_PASSWORD=root
+#       - POSTGRES_HOST=postgres
+#       - POSTGRES_PORT=5432
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+
+#   frontend:
+#     image: subhamsahu121/frontend:latest  # Use the image you pushed to Docker Hub
+#     container_name: frontend
+#     ports:
+#       - "5173:5173"
+#     environment:
+#       - VITE_HOST=0.0.0.0
+#       - CHOKIDAR_USEPOLLING=true
+#       - REACT_APP_API_URL=http://backend:8000
+#     command: npm run dev -- --host 0.0.0.0
+#     depends_on:
+#       - backend
+
+# volumes:
+#   postgres_data:
+#     driver: local
+
+# networks:
+#   default:
+#     driver: bridge
